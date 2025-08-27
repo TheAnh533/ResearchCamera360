@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>360° HDRI Viewer</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: 1px solid white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="info">360° HDRI Viewer - Click and drag to rotate, scroll to zoom</div>
+    <div id="controls">
+        <button id="prevBtn">Previous</button>
+        <button id="nextBtn">Next</button>
+        <button id="toggleAutoRotate">Auto-rotate: Off</button>
+    </div>
+
+    <!-- Three.js library and addons -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/RGBELoader.js"></script>
+    
+    <script>
+        // Danh sách file HDR 4K
+        const hdriList = [
+            'hdri_4k/abandoned_bakery_4k.hdr',
+            'hdri_4k/abandoned_church_4k.hdr',
+            'hdri_4k/abandoned_construction_4k.hdr',
+            'hdri_4k/abandoned_factory_canteen_01_4k.hdr',
+            'hdri_4k/abandoned_factory_canteen_02_4k.hdr',
+            'hdri_4k/abandoned_games_room_01_4k.hdr',
+            'hdri_4k/abandoned_games_room_02_4k.hdr',
+            'hdri_4k/abandoned_garage_4k.hdr',
+            'hdri_4k/abandoned_greenhouse_4k.hdr',
+            'hdri_4k/abandoned_hall_01_4k.hdr'
+        ];
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // tone mapping để HDR hiển thị đẹp
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+
+        document.body.appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        let sphere, currentHdriIndex = 0;
+        let autoRotate = false;
+        let autoRotateSpeed = 0.5;
+        
+        // Load HDRI
+        function loadHDRI(index) {
+            if (index < 0 || index >= hdriList.length) return;
+            
+            if (sphere) scene.remove(sphere);
+            
+            new THREE.RGBELoader()
+                .setPath('')
+                .load(hdriList[index], function (texture) {
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    
+                    // Tạo sphere lật ngược để map texture bên trong
+                    const geometry = new THREE.SphereGeometry(500, 60, 40);
+                    geometry.scale(-1, 1, 1);
+                    
+                    const material = new THREE.MeshBasicMaterial({ map: texture });
+                    
+                    sphere = new THREE.Mesh(geometry, material);
+                    scene.add(sphere);
+                    
+                    camera.position.set(0, 0, 5);
+                    controls.update();
+                    
+                    document.getElementById('info').textContent = 
+                        `360° HDRI Viewer - ${hdriList[index].split('/').pop()} (${index + 1}/${hdriList.length})`;
+                },
+                undefined,
+                function (error) {
+                    console.error('An error occurred loading the HDR file:', error);
+                });
+        }
+        
+        function nextHDRI() {
+            currentHdriIndex = (currentHdriIndex + 1) % hdriList.length;
+            loadHDRI(currentHdriIndex);
+        }
+        
+        function prevHDRI() {
+            currentHdriIndex = (currentHdriIndex - 1 + hdriList.length) % hdriList.length;
+            loadHDRI(currentHdriIndex);
+        }
+        
+        // Event listeners
+        document.getElementById('nextBtn').addEventListener('click', nextHDRI);
+        document.getElementById('prevBtn').addEventListener('click', prevHDRI);
+        document.getElementById('toggleAutoRotate').addEventListener('click', function() {
+            autoRotate = !autoRotate;
+            this.textContent = `Auto-rotate: ${autoRotate ? 'On' : 'Off'}`;
+        });
+        
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowLeft') prevHDRI();
+            if (event.key === 'ArrowRight') nextHDRI();
+            if (event.key === ' ') {
+                autoRotate = !autoRotate;
+                document.getElementById('toggleAutoRotate').textContent = `Auto-rotate: ${autoRotate ? 'On' : 'Off'}`;
+            }
+        });
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (autoRotate && sphere) {
+                sphere.rotation.y += 0.001 * autoRotateSpeed;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        loadHDRI(0);
+        animate();
+    </script>
+</body>
+</html>
